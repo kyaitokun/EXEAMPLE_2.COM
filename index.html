@@ -11,38 +11,9 @@
             font-family: 'Inter', sans-serif;
             background-color: #f3f4f6;
         }
-        .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(255, 255, 255, 0.8);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 10;
-        }
-        .loader {
-            border: 8px solid #f3f3f3;
-            border-top: 8px solid #3b82f6;
-            border-radius: 50%;
-            width: 60px;
-            height: 60px;
-            animation: spin 2s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
-
-    <!-- Loading Overlay -->
-    <div id="loading-overlay" class="loading-overlay hidden">
-        <div class="loader"></div>
-    </div>
 
     <div id="app" class="bg-white rounded-3xl shadow-xl w-full max-w-md p-6 sm:p-8 space-y-6">
 
@@ -58,11 +29,6 @@
     </div>
 
     <script>
-        // Google Apps ScriptのウェブアプリURLをここに貼り付けてください
-        // これは、あなたのGoogle Apps Scriptプロジェクトをウェブアプリとしてデプロイしたときに発行されるURLです。
-        // スプレッドシートを公開したURLではありません。
-        const gasUrl = 'https://script.google.com/macros/s/AKfycbwYu8hysyv70leaI91S92hfqwduvIgTD8m8NRqo6TFsyZj8jf_R9DeN1Pvxx9TIp0Z8/exec';
-        
         // 管理する硬貨の種類と金額
         const coins = {
             '500円玉': 500,
@@ -76,24 +42,18 @@
         };
         // すべての通貨の組み合わせ
         const allDenominations = { ...bills, ...coins };
+        const storageKey = 'piggyBankData';
         let piggyBank = {};
+        const app = document.getElementById('app');
         const mainContent = document.getElementById('main-content');
         const headerTitle = document.getElementById('header-title');
         const headerSubtitle = document.getElementById('header-subtitle');
-        const loadingOverlay = document.getElementById('loading-overlay');
 
         // Initial setup
         window.onload = () => {
-            if (gasUrl === '') {
-                renderMessageBox('エラー：GASのURLが設定されていません。GASプロジェクトをウェブアプリとしてデプロイし、そのURLをコードに貼り付けてください。', 'error');
-                console.error('GAS URL is not set.');
-                return;
-            }
             loadData();
+            showHomePage();
         };
-
-        const showLoading = () => loadingOverlay.classList.remove('hidden');
-        const hideLoading = () => loadingOverlay.classList.add('hidden');
 
         // UI helper functions
         const renderHeader = (title, subtitle) => {
@@ -155,48 +115,24 @@
         };
 
         // Data handling
-        const loadData = async () => {
-            showLoading();
-            try {
-                const response = await fetch(gasUrl + '?action=getData');
-                if (!response.ok) {
-                    throw new Error(`GASからエラー応答がありました: ${response.status} ${response.statusText}`);
-                }
-                const data = await response.json();
-                
+        const loadData = () => {
+            const data = localStorage.getItem(storageKey);
+            if (data) {
                 // Initialize only the denominations we care about now
+                const loadedData = JSON.parse(data);
                 piggyBank = {};
                 Object.keys(allDenominations).forEach(key => {
-                    piggyBank[key] = data[key] || 0;
+                    piggyBank[key] = loadedData[key] || 0;
                 });
-            } catch (error) {
-                console.error('Error loading data:', error);
-                renderMessageBox(`データの読み込みに失敗しました。原因: ${error.message}。GASのURLが正しいか、またはデプロイ設定（全員に公開）を確認してください。`, 'error');
-                // ローカルで初期化
+            } else {
+                // Initialize all counts to 0
                 Object.keys(allDenominations).forEach(key => piggyBank[key] = 0);
-            } finally {
-                hideLoading();
-                showHomePage();
+                saveData();
             }
         };
 
-        const saveData = async () => {
-            showLoading();
-            try {
-                const response = await fetch(gasUrl + '?action=saveData', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: `data=${JSON.stringify(piggyBank)}`
-                });
-                 if (!response.ok) {
-                    throw new Error(`GASからエラー応答がありました: ${response.status} ${response.statusText}`);
-                }
-            } catch (error) {
-                console.error('Error saving data:', error);
-                renderMessageBox(`データの保存に失敗しました。原因: ${error.message}。GASのURLが正しいか、またはデプロイ設定（全員に公開）を確認してください。`, 'error');
-            } finally {
-                hideLoading();
-            }
+        const saveData = () => {
+            localStorage.setItem(storageKey, JSON.stringify(piggyBank));
         };
 
         const getTotalAmount = () => {
@@ -244,20 +180,20 @@
                         () => { counts[key]++; renderInputs(); },
                         () => { if (counts[key] > 0) counts[key]--; renderInputs(); },
                         (e) => { counts[key] = parseInt(e.target.value) || 0; },
-                        Infinity
+                        Infinity // 預け入れに上限はない
                     ));
                 });
             };
             renderInputs();
 
             mainContent.appendChild(depositForm);
-            mainContent.appendChild(renderButton('お預け完了', async () => {
+            mainContent.appendChild(renderButton('お預け完了', () => {
                 let totalAdded = 0;
                 for (const [key, value] of Object.entries(counts)) {
                     piggyBank[key] += value;
                     totalAdded += value * allDenominations[key];
                 }
-                await saveData();
+                saveData();
                 renderMessageBox(`${totalAdded.toLocaleString()}円を預けました！`, 'success');
                 setTimeout(showHomePage, 2000);
             }));
@@ -292,11 +228,12 @@
             renderInputs();
 
             mainContent.appendChild(withdrawalForm);
-            mainContent.appendChild(renderButton('お引き出し完了', async () => {
+            mainContent.appendChild(renderButton('お引き出し完了', () => {
                 let totalWithdrawn = 0;
                 let hasError = false;
                 for (const [key, value] of Object.entries(counts)) {
                     if (piggyBank[key] < value) {
+                        // このチェックはすでにUI側で行われているが、念のため残しておく
                         renderMessageBox(`${key}が足りません。`, 'error');
                         hasError = true;
                         break;
@@ -306,7 +243,7 @@
                 }
 
                 if (!hasError) {
-                    await saveData();
+                    saveData();
                     renderMessageBox(`${totalWithdrawn.toLocaleString()}円を引き出しました。`, 'success');
                     setTimeout(showHomePage, 2000);
                 }
@@ -321,6 +258,7 @@
             const detailsList = document.createElement('ul');
             detailsList.className = 'space-y-2';
 
+            // 合計を個と枚で分けて表示
             let totalBills = 0;
             let totalCoins = 0;
             const billDenominations = Object.keys(bills);
