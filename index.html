@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>貯金箱</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+
+    <div id="app" class="bg-white rounded-3xl shadow-xl w-full max-w-md p-6 sm:p-8 space-y-6">
+
+        <!-- Header -->
+        <header class="text-center space-y-2">
+            <h1 id="header-title" class="text-3xl sm:text-4xl font-bold text-gray-800">貯金箱</h1>
+            <p id="header-subtitle" class="text-gray-500">簡単入出金管理</p>
+        </header>
+
+        <!-- Main Content (Dynamic) -->
+        <main id="main-content" class="space-y-6"></main>
+
+    </div>
+
+    <script>
+        // 管理する硬貨の種類と金額
+        const coins = {
+            '500円玉': 500,
+            '100円玉': 100,
+        };
+        // 管理する紙幣の種類と金額
+        const bills = {
+            '10000円札': 10000,
+            '5000円札': 5000,
+            '1000円札': 1000,
+        };
+        // すべての通貨の組み合わせ
+        const allDenominations = { ...bills, ...coins };
+        const storageKey = 'piggyBankData';
+        let piggyBank = {};
+        const app = document.getElementById('app');
+        const mainContent = document.getElementById('main-content');
+        const headerTitle = document.getElementById('header-title');
+        const headerSubtitle = document.getElementById('header-subtitle');
+
+        // Initial setup
+        window.onload = () => {
+            loadData();
+            showHomePage();
+        };
+
+        // UI helper functions
+        const renderHeader = (title, subtitle) => {
+            headerTitle.textContent = title;
+            headerSubtitle.textContent = subtitle;
+        };
+
+        const renderButton = (text, action, style = 'bg-blue-600 hover:bg-blue-700 text-white') => {
+            const button = document.createElement('button');
+            button.className = `w-full rounded-full py-3 text-lg font-bold transition-colors duration-200 ${style}`;
+            button.textContent = text;
+            button.addEventListener('click', action);
+            return button;
+        };
+
+        const renderInputGroup = (label, value, onPlus, onMinus, onInput, maxCount = Infinity, currentCount = null) => {
+            const container = document.createElement('div');
+            container.className = 'flex items-center justify-between p-4 bg-gray-50 rounded-lg';
+            
+            const unit = coins[label] ? '個' : '枚';
+            const labelText = currentCount !== null ? `${label} (現在: ${currentCount}${unit})` : label;
+
+            const labelEl = document.createElement('span');
+            labelEl.className = 'text-gray-700 font-medium';
+            labelEl.textContent = labelText;
+
+            const controls = document.createElement('div');
+            controls.className = 'flex items-center space-x-2';
+
+            const minusButton = document.createElement('button');
+            minusButton.className = 'w-8 h-8 flex items-center justify-center text-xl font-bold rounded-full bg-red-100 text-red-600';
+            minusButton.textContent = '-';
+            minusButton.addEventListener('click', onMinus);
+
+            const input = document.createElement('input');
+            input.type = 'number';
+            input.className = 'w-16 text-center bg-transparent focus:outline-none text-xl font-bold text-gray-800';
+            input.value = value;
+            input.min = "0";
+            input.addEventListener('input', onInput);
+            
+            const plusButton = document.createElement('button');
+            plusButton.className = `w-8 h-8 flex items-center justify-center text-xl font-bold rounded-full transition-colors duration-200 ${value < maxCount ? 'bg-green-100 text-green-600' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`;
+            plusButton.textContent = '+';
+            plusButton.disabled = value >= maxCount;
+            plusButton.addEventListener('click', onPlus);
+
+            controls.append(minusButton, input, plusButton);
+            container.append(labelEl, controls);
+            return container;
+        };
+
+        const renderMessageBox = (message, type = 'info') => {
+            const box = document.createElement('div');
+            box.className = `p-4 rounded-lg text-center font-medium ${type === 'success' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`;
+            box.textContent = message;
+            mainContent.prepend(box);
+            setTimeout(() => box.remove(), 3000);
+        };
+
+        // Data handling
+        const loadData = () => {
+            const data = localStorage.getItem(storageKey);
+            if (data) {
+                // Initialize only the denominations we care about now
+                const loadedData = JSON.parse(data);
+                piggyBank = {};
+                Object.keys(allDenominations).forEach(key => {
+                    piggyBank[key] = loadedData[key] || 0;
+                });
+            } else {
+                // Initialize all counts to 0
+                Object.keys(allDenominations).forEach(key => piggyBank[key] = 0);
+                saveData();
+            }
+        };
+
+        const saveData = () => {
+            localStorage.setItem(storageKey, JSON.stringify(piggyBank));
+        };
+
+        const getTotalAmount = () => {
+            let total = 0;
+            for (const [key, value] of Object.entries(piggyBank)) {
+                total += value * allDenominations[key];
+            }
+            return total;
+        };
+
+        // Page rendering functions
+        const showHomePage = () => {
+            renderHeader('貯金箱', '総額を確認');
+            mainContent.innerHTML = '';
+            
+            // Total amount display
+            const totalContainer = document.createElement('div');
+            totalContainer.className = 'text-center p-6 bg-blue-100 rounded-2xl shadow-inner';
+            totalContainer.innerHTML = `<h2 class="text-2xl font-semibold text-gray-600">現在の総額</h2><p class="text-5xl font-extrabold text-blue-700 mt-2">${getTotalAmount().toLocaleString()} 円</p>`;
+            mainContent.appendChild(totalContainer);
+
+            // Action buttons
+            const buttonContainer = document.createElement('div');
+            buttonContainer.className = 'space-y-4';
+            buttonContainer.appendChild(renderButton('お預け', showDepositPage));
+            buttonContainer.appendChild(renderButton('お引き出し', showWithdrawalPage));
+            buttonContainer.appendChild(renderButton('枚数・個数を見る', showDetailsPage, 'bg-gray-300 hover:bg-gray-400 text-gray-800'));
+            mainContent.appendChild(buttonContainer);
+        };
+
+        const showDepositPage = () => {
+            renderHeader('お預け', '入金する金額を入力');
+            mainContent.innerHTML = '';
+            const depositForm = document.createElement('div');
+            depositForm.className = 'space-y-4';
+            
+            const counts = {};
+            const renderInputs = () => {
+                depositForm.innerHTML = '';
+                Object.keys(allDenominations).forEach(key => {
+                    counts[key] = counts[key] || 0;
+                    depositForm.appendChild(renderInputGroup(
+                        key,
+                        counts[key],
+                        () => { counts[key]++; renderInputs(); },
+                        () => { if (counts[key] > 0) counts[key]--; renderInputs(); },
+                        (e) => { counts[key] = parseInt(e.target.value) || 0; },
+                        Infinity // 預け入れに上限はない
+                    ));
+                });
+            };
+            renderInputs();
+
+            mainContent.appendChild(depositForm);
+            mainContent.appendChild(renderButton('お預け完了', () => {
+                let totalAdded = 0;
+                for (const [key, value] of Object.entries(counts)) {
+                    piggyBank[key] += value;
+                    totalAdded += value * allDenominations[key];
+                }
+                saveData();
+                renderMessageBox(`${totalAdded.toLocaleString()}円を預けました！`, 'success');
+                setTimeout(showHomePage, 2000);
+            }));
+            mainContent.appendChild(renderButton('ホームに戻る', showHomePage, 'bg-gray-300 hover:bg-gray-400 text-gray-800'));
+        };
+
+        const showWithdrawalPage = () => {
+            renderHeader('お引き出し', '出金する金額を入力');
+            mainContent.innerHTML = '';
+            const withdrawalForm = document.createElement('div');
+            withdrawalForm.className = 'space-y-4';
+            
+            const counts = {};
+            const renderInputs = () => {
+                withdrawalForm.innerHTML = '';
+                Object.keys(allDenominations).forEach(key => {
+                    counts[key] = counts[key] || 0;
+                    withdrawalForm.appendChild(renderInputGroup(
+                        key,
+                        counts[key],
+                        () => { if (counts[key] < piggyBank[key]) { counts[key]++; } renderInputs(); },
+                        () => { if (counts[key] > 0) counts[key]--; renderInputs(); },
+                        (e) => { 
+                            const newValue = parseInt(e.target.value) || 0;
+                            counts[key] = Math.min(newValue, piggyBank[key]);
+                        },
+                        piggyBank[key], // 現在の貯金枚数を上限として設定
+                        piggyBank[key] // 現在の貯金枚数を表示
+                    ));
+                });
+            };
+            renderInputs();
+
+            mainContent.appendChild(withdrawalForm);
+            mainContent.appendChild(renderButton('お引き出し完了', () => {
+                let totalWithdrawn = 0;
+                let hasError = false;
+                for (const [key, value] of Object.entries(counts)) {
+                    if (piggyBank[key] < value) {
+                        // このチェックはすでにUI側で行われているが、念のため残しておく
+                        renderMessageBox(`${key}が足りません。`, 'error');
+                        hasError = true;
+                        break;
+                    }
+                    piggyBank[key] -= value;
+                    totalWithdrawn += value * allDenominations[key];
+                }
+
+                if (!hasError) {
+                    saveData();
+                    renderMessageBox(`${totalWithdrawn.toLocaleString()}円を引き出しました。`, 'success');
+                    setTimeout(showHomePage, 2000);
+                }
+            }));
+            mainContent.appendChild(renderButton('ホームに戻る', showHomePage, 'bg-gray-300 hover:bg-gray-400 text-gray-800'));
+        };
+
+        const showDetailsPage = () => {
+            renderHeader('枚数・個数', '詳細な内訳');
+            mainContent.innerHTML = '';
+
+            const detailsList = document.createElement('ul');
+            detailsList.className = 'space-y-2';
+
+            // 合計を個と枚で分けて表示
+            let totalBills = 0;
+            let totalCoins = 0;
+            const billDenominations = Object.keys(bills);
+            const coinDenominations = Object.keys(coins);
+
+            billDenominations.forEach(key => {
+                totalBills += piggyBank[key];
+            });
+            coinDenominations.forEach(key => {
+                totalCoins += piggyBank[key];
+            });
+
+            // 紙幣の合計を先に表示
+            const totalBillsItem = document.createElement('li');
+            totalBillsItem.className = 'flex justify-between items-center p-4 bg-blue-50 rounded-lg font-bold text-blue-800';
+            totalBillsItem.innerHTML = `<span>合計 (枚)</span><span>${totalBills.toLocaleString()} 枚</span>`;
+            detailsList.appendChild(totalBillsItem);
+
+            // 紙幣の個別表示
+            billDenominations.forEach(key => {
+                const count = piggyBank[key];
+                const item = document.createElement('li');
+                item.className = 'flex justify-between items-center p-4 bg-gray-50 rounded-lg';
+                item.innerHTML = `
+                    <span class="text-gray-700">${key}</span>
+                    <span class="text-gray-800 font-bold">${count.toLocaleString()} 枚</span>
+                `;
+                detailsList.appendChild(item);
+            });
+
+            // 硬貨の合計
+            const totalCoinsItem = document.createElement('li');
+            totalCoinsItem.className = 'flex justify-between items-center p-4 bg-blue-50 rounded-lg font-bold text-blue-800 mt-4';
+            totalCoinsItem.innerHTML = `<span>合計 (個)</span><span>${totalCoins.toLocaleString()} 個</span>`;
+            detailsList.appendChild(totalCoinsItem);
+            
+            // 硬貨の個別表示
+            coinDenominations.forEach(key => {
+                const count = piggyBank[key];
+                const item = document.createElement('li');
+                item.className = 'flex justify-between items-center p-4 bg-gray-50 rounded-lg';
+                item.innerHTML = `
+                    <span class="text-gray-700">${key}</span>
+                    <span class="text-gray-800 font-bold">${count.toLocaleString()} 個</span>
+                `;
+                detailsList.appendChild(item);
+            });
+
+            mainContent.appendChild(detailsList);
+            mainContent.appendChild(renderButton('ホームに戻る', showHomePage, 'bg-gray-300 hover:bg-gray-400 text-gray-800 mt-6'));
+        };
+    </script>
+
+</body>
+</html>
